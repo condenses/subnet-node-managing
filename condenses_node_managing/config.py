@@ -7,6 +7,8 @@ class RedisConfig(BaseModel):
     host: str = "localhost"
     port: int = 6379
     db: int = 0
+    username: Optional[str] = None
+    password: Optional[str] = None
 
 
 class MongoConfig(BaseModel):
@@ -14,6 +16,17 @@ class MongoConfig(BaseModel):
     port: int = 27017
     username: Optional[str] = None
     password: Optional[str] = None
+    uri: Optional[str] = None
+
+    database: str = "condenses"
+    collection: str = "miner_stats"
+
+    def get_uri(self) -> str:
+        if self.uri:
+            return self.uri
+        if self.username and self.password:
+            return f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}"
+        return f"mongodb://{self.host}:{self.port}"
 
 
 class RateLimiterConfig(BaseModel):
