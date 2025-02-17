@@ -12,6 +12,7 @@ class RateLimitRequest(BaseModel):
     uid: Optional[int] = None
     top_fraction: float = 1.0
     count: int = 1
+    acceptable_consumed_rate: float = 1.0
 
 
 class MinerStats(BaseModel):
@@ -46,11 +47,20 @@ class OrchestratorClient:
         response.raise_for_status()
         return response.json()
 
-    def check_rate_limits(
-        self, uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1
+    def consume_rate_limits(
+        self,
+        uid: Optional[int] = None,
+        top_fraction: float = 1.0,
+        count: int = 1,
+        acceptable_consumed_rate: float = 1.0,
     ) -> List[int]:
         """Check rate limits for miners"""
-        request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count)
+        request = RateLimitRequest(
+            uid=uid,
+            top_fraction=top_fraction,
+            count=count,
+            acceptable_consumed_rate=acceptable_consumed_rate,
+        )
         response = self.client.post(
             f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
         )

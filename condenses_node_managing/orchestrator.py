@@ -65,7 +65,11 @@ class MinerOrchestrator:
         return result
 
     def consume_rate_limits(
-        self, uid: int = None, top_fraction: float = 1.0, count: int = 1
+        self,
+        uid: int = None,
+        top_fraction: float = 1.0,
+        count: int = 1,
+        acceptable_consumed_rate: float = 1.0,
     ) -> list[int]:
         """
         Check and consume rate limits for miners.
@@ -82,7 +86,14 @@ class MinerOrchestrator:
             f"Checking rate limits - uid: {uid}, top_fraction: {top_fraction}, count: {count}"
         )
         if uid:
-            result = [uid] if self.limiter.consume(self.miner_keys[uid]) else []
+            result = (
+                [uid]
+                if self.limiter.consume(
+                    self.miner_keys[uid],
+                    acceptable_consumed_rate=acceptable_consumed_rate,
+                )
+                else []
+            )
             logger.debug(
                 f"Rate limit check for miner {uid}: {'passed' if result else 'failed'}"
             )
@@ -106,7 +117,10 @@ class MinerOrchestrator:
         result = [
             miner_id
             for miner_id in selected
-            if self.limiter.consume(self.miner_keys[miner_id])
+            if self.limiter.consume(
+                self.miner_keys[miner_id],
+                acceptable_consumed_rate=acceptable_consumed_rate,
+            )
         ]
         logger.debug(f"Selected miners after rate limit check: {result}")
         return result

@@ -1,5 +1,6 @@
 import redis
 import time
+from loguru import logger
 
 
 class RateLimiter:
@@ -30,14 +31,16 @@ class RateLimiter:
         current_minute = int(time.time() / self.interval)
         return f"ratelimit:{node_key}:{current_minute}"
 
-    def consume(self, node_key: str, amount: int = 1) -> bool:
+    def consume(
+        self, node_key: str, amount: int = 1, acceptable_consumed_rate=1.0
+    ) -> bool:
         """
         Attempt to consume rate limit tokens for a node
 
         Args:
             node_key (str): Identifier for the node
             amount (int): Number of tokens to consume
-
+            acceptable_consumed_rate (float): Acceptable consumed rate
         Returns:
             bool: True if tokens were consumed successfully, False if limit exceeded
         """
@@ -61,12 +64,18 @@ class RateLimiter:
             )
             self.redis_client.expire(window_key, seconds_until_next_minute + 5)
 
-        # Check if new count exceeds limit
-        if new_count > self.limit:
+        # Check if new count exceeds limit or remaining percentage is below acceptable rate
+        consumed_rate = new_count / self.limit
+        if new_count > self.limit or consumed_rate < acceptable_consumed_rate:
             # Rollback the increment
+            logger.debug(
+                f"Rate limit exceeded for {node_key}, consumed_rate: {consumed_rate}, new_count: {new_count}, limit: {self.limit}, acceptable_consumed_rate: {acceptable_consumed_rate}"
+            )
             self.redis_client.decrby(window_key, amount)
             return False
-
+        logger.debug(
+            f"Rate limit consumed for {node_key}, consumed_rate: {consumed_rate}, new_count: {new_count}, limit: {self.limit}, acceptable_consumed_rate: {acceptable_consumed_rate}"
+        )
         return True
 
     def get_remaining(self, node_key: str) -> int:

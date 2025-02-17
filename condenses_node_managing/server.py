@@ -18,6 +18,7 @@ class RateLimitRequest(BaseModel):
     uid: Optional[int] = None
     top_fraction: float = 1.0
     count: int = 1
+    acceptable_consumed_rate: float = 1.0
 
 
 @app.get("/api/stats/{uid}", response_model=MinerStats)
@@ -44,7 +45,10 @@ async def consume_rate_limits(request: RateLimitRequest):
     """Consume rate limits for miners"""
     try:
         return orchestrator.consume_rate_limits(
-            uid=request.uid, top_fraction=request.top_fraction, count=request.count
+            uid=request.uid,
+            top_fraction=request.top_fraction,
+            count=request.count,
+            acceptable_consumed_rate=request.acceptable_consumed_rate,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
