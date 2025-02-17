@@ -64,7 +64,7 @@ class MinerOrchestrator:
         logger.debug(f"Updated stats for miner {uid}, new score: {stats.score}")
         return result
 
-    def check_rate_limits(
+    def consume_rate_limits(
         self, uid: int = None, top_fraction: float = 1.0, count: int = 1
     ) -> list[int]:
         """

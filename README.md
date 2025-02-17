@@ -106,14 +106,14 @@ Get statistics for a specific miner.
 #### update_stats(uid: int, new_score: float) → dict
 Update the score for a specific miner.
 
-#### check_rate_limits(uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1) → List[int]
-Check rate limits for miners. Returns a list of allowed miner UIDs.
+#### consume_rate_limits(uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1) → List[int]
+Consume rate limits for miners. Returns a list of allowed miner UIDs.
 - `uid`: Optional specific miner to check
 - `top_fraction`: Consider only top fraction of miners (0.0 to 1.0)
 - `count`: Number of miners to return
 
-#### get_score_weights() → Tuple[List[int], List[float]]
-Get score weights for all miners. Returns a tuple of (miner_uids, weights).
+#### get_weights() → Tuple[List[int], List[float]]
+Get weights for all miners. Returns a tuple of (miner_uids, weights).
 
 ## Error Handling
 

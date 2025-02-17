@@ -20,7 +20,7 @@ class RateLimitRequest(BaseModel):
     count: int = 1
 
 
-@app.get("/stats/{uid}", response_model=MinerStats)
+@app.get("/api/stats/{uid}", response_model=MinerStats)
 async def get_stats(uid: int):
     """Get stats for a specific miner"""
     try:
@@ -29,7 +29,7 @@ async def get_stats(uid: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/stats/update")
+@app.post("/api/stats/update")
 async def update_stats(update: ScoreUpdate):
     """Update score for a specific miner"""
     try:
@@ -39,18 +39,18 @@ async def update_stats(update: ScoreUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/rate-limits/check", response_model=List[int])
-async def check_rate_limits(request: RateLimitRequest):
-    """Check rate limits for miners"""
+@app.post("/api/rate-limits/consume", response_model=List[int])
+async def consume_rate_limits(request: RateLimitRequest):
+    """Consume rate limits for miners"""
     try:
-        return orchestrator.check_rate_limits(
+        return orchestrator.consume_rate_limits(
             uid=request.uid, top_fraction=request.top_fraction, count=request.count
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/scores/weights", response_model=Tuple[List[int], List[float]])
+@app.get("/api/weights", response_model=Tuple[List[int], List[float]])
 async def get_score_weights():
     """Get score weights for all miners"""
     try:

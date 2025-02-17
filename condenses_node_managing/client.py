@@ -33,7 +33,7 @@ class OrchestratorClient:
 
     def get_stats(self, uid: int) -> MinerStats:
         """Get stats for a specific miner"""
-        response = self.client.get(f"{self.base_url}/stats/{uid}")
+        response = self.client.get(f"{self.base_url}/api/stats/{uid}")
         response.raise_for_status()
         return MinerStats(**response.json())
 
@@ -41,7 +41,7 @@ class OrchestratorClient:
         """Update score for a specific miner"""
         update = ScoreUpdate(uid=uid, new_score=new_score)
         response = self.client.post(
-            f"{self.base_url}/stats/update", json=update.model_dump()
+            f"{self.base_url}/api/stats/update", json=update.model_dump()
         )
         response.raise_for_status()
         return response.json()
@@ -52,14 +52,14 @@ class OrchestratorClient:
         """Check rate limits for miners"""
         request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count)
         response = self.client.post(
-            f"{self.base_url}/rate-limits/check", json=request.model_dump()
+            f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
         )
         response.raise_for_status()
         return response.json()
 
     def get_score_weights(self) -> Tuple[List[int], List[float]]:
         """Get score weights for all miners"""
-        response = self.client.get(f"{self.base_url}/scores/weights")
+        response = self.client.get(f"{self.base_url}/api/weights")
         response.raise_for_status()
         return tuple(response.json())
 
@@ -77,7 +77,7 @@ class AsyncOrchestratorClient:
 
     async def get_stats(self, uid: int) -> MinerStats:
         """Get stats for a specific miner"""
-        response = await self.client.get(f"{self.base_url}/stats/{uid}")
+        response = await self.client.get(f"{self.base_url}/api/stats/{uid}")
         response.raise_for_status()
         return MinerStats(**response.json())
 
@@ -85,7 +85,7 @@ class AsyncOrchestratorClient:
         """Update score for a specific miner"""
         update = ScoreUpdate(uid=uid, new_score=new_score)
         response = await self.client.post(
-            f"{self.base_url}/stats/update", json=update.model_dump()
+            f"{self.base_url}/api/stats/update", json=update.model_dump()
         )
         response.raise_for_status()
         return response.json()
@@ -96,14 +96,14 @@ class AsyncOrchestratorClient:
         """Check rate limits for miners"""
         request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count)
         response = await self.client.post(
-            f"{self.base_url}/rate-limits/check", json=request.model_dump()
+            f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
         )
         response.raise_for_status()
         return response.json()
 
     async def get_score_weights(self) -> Tuple[List[int], List[float]]:
         """Get score weights for all miners"""
-        response = await self.client.get(f"{self.base_url}/scores/weights")
+        response = await self.client.get(f"{self.base_url}/api/weights")
         response.raise_for_status()
         return tuple(response.json())
 
