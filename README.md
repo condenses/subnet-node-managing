@@ -1,15 +1,14 @@
 
 <br /><br />
-
 <div align="center">
-  <h1 align="center">condenses-node-managing</h1>
-  <h4 align="center"> A Python SDK for managing and interacting with Condenses nodes. This SDK provides both synchronous and asynchronous clients for managing miner statistics, rate limits, and score weights.
+  <h1 align="center">subnet-node-managing</h1>
+  <h4 align="center"> A Python SDK for managing and interacting with Subnet nodes. This SDK provides both synchronous and asynchronous clients for managing miner statistics, rate limits, and score weights.
 </div>
 
 ## Installation
 
 ```bash
-pip install condenses-node-managing
+pip install git+https://github.com/condenses/subnet-node-managing.git
 ```
 
 ## Configuration
