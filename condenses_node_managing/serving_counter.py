@@ -66,7 +66,7 @@ class RateLimiter:
 
         # Check if new count exceeds limit or remaining percentage is below acceptable rate
         consumed_rate = new_count / self.limit
-        if new_count > self.limit or consumed_rate < acceptable_consumed_rate:
+        if new_count > self.limit or consumed_rate > acceptable_consumed_rate:
             # Rollback the increment
             logger.debug(
                 f"Rate limit exceeded for {node_key}, consumed_rate: {consumed_rate}, new_count: {new_count}, limit: {self.limit}, acceptable_consumed_rate: {acceptable_consumed_rate}"
