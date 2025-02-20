@@ -100,11 +100,11 @@ class AsyncOrchestratorClient:
         response.raise_for_status()
         return response.json()
 
-    async def check_rate_limits(
-        self, uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1
+    async def consume_rate_limits(
+        self, uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1, acceptable_consumed_rate=1.0
     ) -> List[int]:
         """Check rate limits for miners"""
-        request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count)
+        request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count, acceptable_consumed_rate=acceptable_consumed_rate)
         response = await self.client.post(
             f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
         )
