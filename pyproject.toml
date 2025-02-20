@@ -23,6 +23,7 @@ dependencies = [
     "pydantic-settings>=2.7.1",
     "pymongo>=4.11.1",
     "redis>=5.2.1",
+    "rich",
     "uvicorn>=0.34.0",
 ]
 

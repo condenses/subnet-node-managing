@@ -55,3 +55,19 @@ class Settings(BaseSettings):
 
 
 CONFIG = Settings()
+
+
+from rich.console import Console
+from rich.panel import Panel
+
+console = Console()
+settings_dict = CONFIG.model_dump()
+
+for section, values in settings_dict.items():
+    console.print(
+        Panel.fit(
+            str(values),
+            title=f"[bold blue]{section}[/bold blue]",
+            border_style="green",
+        )
+    )
