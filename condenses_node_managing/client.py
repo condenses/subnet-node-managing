@@ -32,17 +32,21 @@ class OrchestratorClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.client.close()
 
-    def get_stats(self, uid: int) -> MinerStats:
+    def get_stats(self, uid: int, timeout: Optional[float] = None) -> MinerStats:
         """Get stats for a specific miner"""
-        response = self.client.get(f"{self.base_url}/api/stats/{uid}")
+        response = self.client.get(f"{self.base_url}/api/stats/{uid}", timeout=timeout)
         response.raise_for_status()
         return MinerStats(**response.json())
 
-    def update_stats(self, uid: int, new_score: float) -> dict:
+    def update_stats(
+        self, uid: int, new_score: float, timeout: Optional[float] = None
+    ) -> dict:
         """Update score for a specific miner"""
         update = ScoreUpdate(uid=uid, new_score=new_score)
         response = self.client.post(
-            f"{self.base_url}/api/stats/update", json=update.model_dump()
+            f"{self.base_url}/api/stats/update",
+            json=update.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()
@@ -53,6 +57,7 @@ class OrchestratorClient:
         top_fraction: float = 1.0,
         count: int = 1,
         acceptable_consumed_rate: float = 1.0,
+        timeout: Optional[float] = None,
     ) -> List[int]:
         """Check rate limits for miners"""
         request = RateLimitRequest(
@@ -62,14 +67,18 @@ class OrchestratorClient:
             acceptable_consumed_rate=acceptable_consumed_rate,
         )
         response = self.client.post(
-            f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
+            f"{self.base_url}/api/rate-limits/consume",
+            json=request.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()
 
-    def get_score_weights(self) -> Tuple[List[int], List[float]]:
+    def get_score_weights(
+        self, timeout: Optional[float] = None
+    ) -> Tuple[List[int], List[float]]:
         """Get score weights for all miners"""
-        response = self.client.get(f"{self.base_url}/api/weights")
+        response = self.client.get(f"{self.base_url}/api/weights", timeout=timeout)
         response.raise_for_status()
         return tuple(response.json())
 
@@ -85,35 +94,57 @@ class AsyncOrchestratorClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.client.aclose()
 
-    async def get_stats(self, uid: int) -> MinerStats:
+    async def get_stats(self, uid: int, timeout: Optional[float] = None) -> MinerStats:
         """Get stats for a specific miner"""
-        response = await self.client.get(f"{self.base_url}/api/stats/{uid}")
+        response = await self.client.get(
+            f"{self.base_url}/api/stats/{uid}", timeout=timeout
+        )
         response.raise_for_status()
         return MinerStats(**response.json())
 
-    async def update_stats(self, uid: int, new_score: float) -> dict:
+    async def update_stats(
+        self, uid: int, new_score: float, timeout: Optional[float] = None
+    ) -> dict:
         """Update score for a specific miner"""
         update = ScoreUpdate(uid=uid, new_score=new_score)
         response = await self.client.post(
-            f"{self.base_url}/api/stats/update", json=update.model_dump()
+            f"{self.base_url}/api/stats/update",
+            json=update.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()
 
     async def consume_rate_limits(
-        self, uid: Optional[int] = None, top_fraction: float = 1.0, count: int = 1, acceptable_consumed_rate=1.0
+        self,
+        uid: Optional[int] = None,
+        top_fraction: float = 1.0,
+        count: int = 1,
+        acceptable_consumed_rate: float = 1.0,
+        timeout: Optional[float] = None,
     ) -> List[int]:
         """Check rate limits for miners"""
-        request = RateLimitRequest(uid=uid, top_fraction=top_fraction, count=count, acceptable_consumed_rate=acceptable_consumed_rate)
+        request = RateLimitRequest(
+            uid=uid,
+            top_fraction=top_fraction,
+            count=count,
+            acceptable_consumed_rate=acceptable_consumed_rate,
+        )
         response = await self.client.post(
-            f"{self.base_url}/api/rate-limits/consume", json=request.model_dump()
+            f"{self.base_url}/api/rate-limits/consume",
+            json=request.model_dump(),
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()
 
-    async def get_score_weights(self) -> Tuple[List[int], List[float]]:
+    async def get_score_weights(
+        self, timeout: Optional[float] = None
+    ) -> Tuple[List[int], List[float]]:
         """Get score weights for all miners"""
-        response = await self.client.get(f"{self.base_url}/api/weights")
+        response = await self.client.get(
+            f"{self.base_url}/api/weights", timeout=timeout
+        )
         response.raise_for_status()
         return tuple(response.json())
 
