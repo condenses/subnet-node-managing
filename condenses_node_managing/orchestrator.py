@@ -27,11 +27,10 @@ class MinerStats(BaseModel):
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        self.engine = create_async_engine(
-            f"postgresql+asyncpg://{CONFIG.postgres.username}:{CONFIG.postgres.password}"
-            f"@{CONFIG.postgres.host}:{CONFIG.postgres.port}/{CONFIG.postgres.database}"
+        self.engine = create_engine(
+            CONFIG.postgres.uri
         )
-        self.SessionMaker = sessionmaker(bind=self.engine, class_=AsyncSession)
+        self.SessionMaker = sessionmaker(bind=self.engine)
         self.redis = redis.Redis(
             host=CONFIG.redis.host,
             port=CONFIG.redis.port,
@@ -53,8 +52,8 @@ class MinerOrchestrator:
         )
         asyncio.create_task(self.sync_rate_limit())
         if not self.check_connection():
-            logger.error("Failed to connect to SQLite or Redis")
-            raise ConnectionError("Failed to connect to SQLite")
+            logger.error("Failed to connect to PostgreSQL or Redis")
+            raise ConnectionError("Failed to connect to PostgreSQL")
         logger.info("MinerOrchestrator initialized successfully")
 
     def _init_db(self):
@@ -71,43 +70,65 @@ class MinerOrchestrator:
             self.limiter.limit = rate_limit
             await asyncio.sleep(600)
 
-    @asynccontextmanager
-    async def _get_db(self):
-        """Async context manager for database sessions"""
-        session = await self.SessionMaker()
+    @contextmanager
+    def _get_db(self):
+        """Context manager for database sessions"""
+        session = self.SessionMaker()
         try:
             yield session
-            await session.commit()
+            session.commit()
         except Exception:
-            await session.rollback()
+            session.rollback()
             raise
         finally:
-            await session.close()
+            session.close()
 
-    async def get_stats(self, uid: int) -> MinerStats:
+    def get_stats(self, uid: int) -> MinerStats:
         logger.debug(f"Getting stats for miner {uid}")
-        async with self._get_db() as session:
-            stats = await session.query(MinerStatsModel).filter_by(uid=uid).first()
+        with self._get_db() as session:
+            stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
             logger.info(f"Stats: {stats}")
             if not stats:
                 logger.info(f"No stats found for miner {uid}, creating new entry")
                 stats = MinerStatsModel(uid=uid, score=0.0)
-                await session.add(stats)
-                await session.commit()
+                session.add(stats)
+                session.commit()
                 return MinerStats(uid=stats.uid, score=stats.score)
 
             return MinerStats(uid=stats.uid, score=stats.score)
 
-    async def update_stats(self, uid: int, new_score: float) -> bool:
+    def update_stats(self, uid: int, new_score: float) -> bool:
         logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
-        stats = await self.get_stats(uid)
+        stats = self.get_stats(uid)
         stats.score = stats.score * self.score_ema + new_score * (1 - self.score_ema)
         logger.info(f"Stats: {stats}")
-        async with self._get_db() as session:
-            db_stats = await session.query(MinerStatsModel).filter_by(uid=uid).first()
+        with self._get_db() as session:
+            db_stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
             db_stats.score = stats.score
             logger.debug(f"Updated stats for miner {uid}, new score: {stats.score}")
             return True
+
+    def get_score_weights(self) -> tuple[list[int], list[float]]:
+        logger.debug("Calculating score weights for all miners")
+        scores = [self.get_stats(uid).score for uid in self.miner_ids]
+        total = sum(scores)
+        normalized_scores = [round(score / total, 3) for score in scores]
+        return self.miner_ids, normalized_scores
+
+    def check_connection(self) -> bool:
+        """Check if both PostgreSQL and Redis connections are alive and working."""
+        logger.debug("Checking PostgreSQL and Redis connections")
+        try:
+            # Check PostgreSQL connection
+            with self._get_db() as session:
+                session.query(MinerStatsModel).first()
+            # Check Redis connection
+            redis_ok = self.redis.ping()
+            logger.debug(f"Connection check - PostgreSQL: True, Redis: {redis_ok}")
+            return True and redis_ok
+        except Exception as e:
+            logger.error(f"Connection check failed: {str(e)}")
+            return False
 
     async def consume_rate_limits(
         self,
@@ -171,25 +192,3 @@ class MinerOrchestrator:
         ]
         logger.debug(f"Selected miners after rate limit check: {result}")
         return result
-
-    async def get_score_weights(self) -> tuple[list[int], list[float]]:
-        logger.debug("Calculating score weights for all miners")
-        scores = [await self.get_stats(uid).score for uid in self.miner_ids]
-        total = sum(scores)
-        normalized_scores = [round(score / total, 3) for score in scores]
-        return self.miner_ids, normalized_scores
-
-    async def check_connection(self) -> bool:
-        """Check if both SQLite and Redis connections are alive and working."""
-        logger.debug("Checking SQLite and Redis connections")
-        try:
-            # Check SQLite connection
-            async with self._get_db() as session:
-                await session.query(MinerStatsModel).first()
-            # Check Redis connection
-            redis_ok = await self.redis.ping()
-            logger.debug(f"Connection check - SQLite: True, Redis: {redis_ok}")
-            return True and redis_ok
-        except Exception as e:
-            logger.error(f"Connection check failed: {str(e)}")
-            return False
