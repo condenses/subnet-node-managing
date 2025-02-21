@@ -30,6 +30,14 @@ class SQLiteConfig(BaseModel):
 class RestfulBittensorConfig(BaseModel):
     base_url: str = "http://127.0.0.1:9103"
 
+class PostgresConfig(BaseModel):
+    model_config = {"extra": "ignore"}
+    host: str = "localhost"
+    port: int = 5432
+    database: str = "condenses"
+    username: str = "postgres"
+    password: str = "postgres"
+
 
 
 class Settings(BaseSettings):
@@ -38,6 +46,7 @@ class Settings(BaseSettings):
     miner_manager: MinerManagerConfig = MinerManagerConfig()
     sqlite: SQLiteConfig = SQLiteConfig()
     restful_bittensor: RestfulBittensorConfig = RestfulBittensorConfig()
+    postgres: PostgresConfig = PostgresConfig()
     class Config:
         env_nested_delimiter = "__"
         env_file = ".env"

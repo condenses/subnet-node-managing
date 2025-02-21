@@ -27,7 +27,10 @@ class MinerStats(BaseModel):
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        self.engine = create_async_engine(f"sqlite+aiosqlite:///{CONFIG.sqlite.path}")
+        self.engine = create_async_engine(
+            f"postgresql+asyncpg://{CONFIG.postgres.username}:{CONFIG.postgres.password}"
+            f"@{CONFIG.postgres.host}:{CONFIG.postgres.port}/{CONFIG.postgres.database}"
+        )
         self.SessionMaker = sessionmaker(bind=self.engine, class_=AsyncSession)
         self.redis = redis.Redis(
             host=CONFIG.redis.host,
