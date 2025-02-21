@@ -36,7 +36,7 @@ async def update_stats(update: ScoreUpdate):
     """Update score for a specific miner"""
     try:
         result = orchestrator.update_stats(uid=update.uid, new_score=update.new_score)
-        return {"modified_count": result.modified_count}
+        return {"result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
