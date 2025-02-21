@@ -37,6 +37,7 @@ class PostgresConfig(BaseModel):
     database: str = "condenses"
     username: str = "postgres"
     password: str = "postgres"
+    uri: str = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
 
 
