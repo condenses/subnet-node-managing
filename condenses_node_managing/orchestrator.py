@@ -84,7 +84,7 @@ class MinerOrchestrator:
         logger.debug(f"Getting stats for miner {uid}")
         with self._get_db() as session:
             stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
-            
+            logger.info(f"Stats: {stats}")
             if not stats:
                 logger.info(f"No stats found for miner {uid}, creating new entry")
                 stats = MinerStatsModel(uid=uid, score=0.0)
@@ -98,7 +98,7 @@ class MinerOrchestrator:
         logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
         stats = self.get_stats(uid)
         stats.score = stats.score * self.score_ema + new_score * (1 - self.score_ema)
-        
+        logger.info(f"Stats: {stats}")
         with self._get_db() as session:
             db_stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
             db_stats.score = stats.score
