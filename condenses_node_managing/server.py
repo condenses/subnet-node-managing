@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Tuple, Optional
 from .orchestrator import MinerOrchestrator, MinerStats
 from .config import CONFIG
-
+from loguru import logger
 
 app = FastAPI()
 orchestrator = MinerOrchestrator()
@@ -38,6 +38,7 @@ async def update_stats(update: ScoreUpdate):
         result = orchestrator.update_stats(uid=update.uid, new_score=update.new_score)
         return {"result": result}
     except Exception as e:
+        logger.error(f"Error updating stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -52,6 +53,7 @@ async def consume_rate_limits(request: RateLimitRequest):
             acceptable_consumed_rate=request.acceptable_consumed_rate,
         )
     except Exception as e:
+        logger.error(f"Error consuming rate limits: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -61,4 +63,5 @@ async def get_score_weights():
     try:
         return orchestrator.get_score_weights()
     except Exception as e:
+        logger.error(f"Error getting score weights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
