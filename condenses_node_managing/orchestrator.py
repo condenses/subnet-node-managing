@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from restful_bittensor.client import AsyncRestfulBittensor
 import asyncio
+from sqlalchemy.sql import text
 
 Base = declarative_base()
 
@@ -65,10 +66,10 @@ class MinerOrchestrator:
 
         with temp_engine.connect() as conn:
             # Check if the database already exists
-            result = conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :database"), {"database": database_name})
             if not result.fetchone():
                 # Create database if it doesn't exist
-                conn.execute(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'")
+                conn.execute(text(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'"))
                 logger.info(f"Database {database_name} created successfully")
             else:
                 logger.info(f"Database {database_name} already exists")
