@@ -10,8 +10,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from restful_bittensor.client import AsyncRestfulBittensor
 import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from contextlib import asynccontextmanager
 
 Base = declarative_base()
 
@@ -31,6 +29,9 @@ class MinerOrchestrator:
             CONFIG.postgres.get_uri()
         )
         self.SessionMaker = sessionmaker(bind=self.engine)
+        # Initialize database tables
+        self._init_db()
+        
         self.redis = redis.Redis(
             host=CONFIG.redis.host,
             port=CONFIG.redis.port,
@@ -57,7 +58,23 @@ class MinerOrchestrator:
         logger.info("MinerOrchestrator initialized successfully")
 
     def _init_db(self):
-        """Initialize SQLite database and create tables if they don't exist"""
+        """Initialize PostgreSQL database and create tables if they don't exist"""
+        # Create database if it doesn't exist
+        default_db_uri = CONFIG.postgres.get_uri(database='postgres')
+        temp_engine = create_engine(default_db_uri)
+        database_name = CONFIG.postgres.database
+
+        with temp_engine.connect() as conn:
+            # Disconnect all users from the database we're dropping
+            conn.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s", (database_name,))
+            conn.execute("commit")
+            
+            # Create database if it doesn't exist
+            conn.execute("commit")
+            conn.execute(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'")
+            conn.execute("commit")
+
+        # Create tables
         Base.metadata.create_all(self.engine)
 
     async def sync_rate_limit(self):
