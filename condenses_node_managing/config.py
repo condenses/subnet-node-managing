@@ -42,6 +42,8 @@ class PostgresConfig(BaseModel):
     def get_uri(self):
         if self.uri:
             return self.uri
+        if not all([self.host, self.port, self.database, self.username, self.password]):
+            raise ValueError("Missing required PostgreSQL configuration fields")
         return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 

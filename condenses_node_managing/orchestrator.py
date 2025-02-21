@@ -59,20 +59,19 @@ class MinerOrchestrator:
 
     def _init_db(self):
         """Initialize PostgreSQL database and create tables if they don't exist"""
-        # Create database if it doesn't exist
         default_db_uri = CONFIG.postgres.get_uri()
-        temp_engine = create_engine(default_db_uri)
+        temp_engine = create_engine(default_db_uri, pool_size=10, max_overflow=20)  # Use connection pooling
         database_name = CONFIG.postgres.database
 
         with temp_engine.connect() as conn:
-            # Disconnect all users from the database we're dropping
-            conn.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s", (database_name,))
-            conn.execute("commit")
-            
-            # Create database if it doesn't exist
-            conn.execute("commit")
-            conn.execute(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'")
-            conn.execute("commit")
+            # Check if the database already exists
+            result = conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+            if not result.fetchone():
+                # Create database if it doesn't exist
+                conn.execute(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'")
+                logger.info(f"Database {database_name} created successfully")
+            else:
+                logger.info(f"Database {database_name} already exists")
 
         # Create tables
         Base.metadata.create_all(self.engine)
