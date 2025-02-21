@@ -10,29 +10,31 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from restful_bittensor.client import AsyncRestfulBittensor
 import asyncio
+import random
 from sqlalchemy.sql import text
 
 Base = declarative_base()
 
+
 class MinerStatsModel(Base):
-    __tablename__ = 'miner_stats'
+    __tablename__ = "miner_stats"
     uid = Column(Integer, primary_key=True)
     score = Column(Float, default=0.0)
+
 
 class MinerStats(BaseModel):
     uid: int
     score: float = 0.0
 
+
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        self.engine = create_engine(
-            CONFIG.postgres.get_uri()
-        )
+        self.engine = create_engine(CONFIG.postgres.get_uri())
         self.SessionMaker = sessionmaker(bind=self.engine)
         # Initialize database tables
         self._init_db()
-        
+
         self.redis = redis.Redis(
             host=CONFIG.redis.host,
             port=CONFIG.redis.port,
@@ -61,15 +63,22 @@ class MinerOrchestrator:
     def _init_db(self):
         """Initialize PostgreSQL database and create tables if they don't exist"""
         default_db_uri = CONFIG.postgres.get_uri()
-        temp_engine = create_engine(default_db_uri, pool_size=10, max_overflow=20, isolation_level="AUTOCOMMIT")  # Enable autocommit
+        temp_engine = create_engine(
+            default_db_uri, pool_size=10, max_overflow=20, isolation_level="AUTOCOMMIT"
+        )  # Enable autocommit
         database_name = CONFIG.postgres.database
 
         with temp_engine.connect() as conn:
             # Check if the database already exists
-            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :database"), {"database": database_name})
+            result = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :database"),
+                {"database": database_name},
+            )
             if not result.fetchone():
                 # Create database if it doesn't exist
-                conn.execute(text(f"CREATE DATABASE {database_name}"))  # Removed WITH ENCODING 'utf8'
+                conn.execute(
+                    text(f"CREATE DATABASE {database_name}")
+                )  # Removed WITH ENCODING 'utf8'
                 logger.info(f"Database {database_name} created successfully")
             else:
                 logger.info(f"Database {database_name} already exists")
@@ -80,7 +89,9 @@ class MinerOrchestrator:
     async def sync_rate_limit(self):
         while True:
             logger.info("Syncing rate limit")
-            normalized_stake = await self.restful_bittensor_client.get_normalized_stake()
+            normalized_stake = (
+                await self.restful_bittensor_client.get_normalized_stake()
+            )
             logger.info(f"Normalized stake: {normalized_stake}")
             rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, 2)
             logger.info(f"Rate limit: {rate_limit}")
@@ -130,15 +141,16 @@ class MinerOrchestrator:
         with self._get_db() as session:
             # Get all miner stats in a single query
             all_stats = {
-                stats.uid: stats.score 
-                for stats in session.query(MinerStatsModel).all()
+                stats.uid: stats.score for stats in session.query(MinerStatsModel).all()
             }
-            
+
             # Use dictionary lookup instead of individual queries
             scores = [all_stats.get(uid, 0.0) for uid in self.miner_ids]
             total = sum(scores)
-            normalized_scores = [round(score / total, 3) if total > 0 else 0.0 for score in scores]
-            
+            normalized_scores = [
+                round(score / total, 3) if total > 0 else 0.0 for score in scores
+            ]
+
         return self.miner_ids, normalized_scores
 
     def check_connection(self) -> bool:
@@ -193,19 +205,28 @@ class MinerOrchestrator:
             )
             return result
 
-        remaining_limits = [self.limiter.get_remaining(key) for key in self.miner_keys]
-        total = sum(remaining_limits)
-        probabilities = [limit / total for limit in remaining_limits]
+        with self._get_db() as session:
+            all_stats = {
+                stats.uid: stats.score for stats in session.query(MinerStatsModel).all()
+            }
 
-        ranked_miners = sorted(
-            zip(self.miner_ids, probabilities), key=lambda x: x[1], reverse=True
-        )[: int(len(self.miner_ids) * top_fraction)]
+        ranked_miners = sorted(all_stats.items(), key=lambda x: x[1], reverse=True)[
+            : int(len(self.miner_ids) * top_fraction)
+        ]
+
+        probabilities = [
+            self.limiter.get_remaining(self.miner_keys[miner_id])
+            for miner_id, _ in ranked_miners
+        ]
+        probabilities = [
+            probability / sum(probabilities) for probability in probabilities
+        ]
 
         selected = np.random.choice(
             [miner_id for miner_id, _ in ranked_miners],
             size=min(count, len(ranked_miners)),
             replace=False,
-            p=[prob for _, prob in ranked_miners],
+            p=probabilities,
         )
 
         result = [
