@@ -4,6 +4,7 @@ from typing import Optional
 
 
 class RedisConfig(BaseModel):
+    model_config = {"extra": "ignore"}
     host: str = "localhost"
     port: int = 6379
     db: int = 0
@@ -11,14 +12,17 @@ class RedisConfig(BaseModel):
     password: Optional[str] = None
 
 class RateLimiterConfig(BaseModel):
+    model_config = {"extra": "ignore"}
     limit: int = 512
     interval: int = 60
 
 
 class MinerManagerConfig(BaseModel):
+    model_config = {"extra": "ignore"}
     score_ema: float = 0.95
 
 class SQLiteConfig(BaseModel):
+    model_config = {"extra": "ignore"}
     path: str = "miner_stats.db"
 
 

@@ -61,7 +61,3 @@ async def get_score_weights():
         return orchestrator.get_score_weights()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-def start_server():
-    uvicorn.run(app, host=CONFIG.server.host, port=CONFIG.server.port)
