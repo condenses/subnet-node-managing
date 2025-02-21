@@ -43,7 +43,7 @@ class MinerOrchestrator:
             base_url=CONFIG.restful_bittensor.base_url,
         )
         self.limiter = RateLimiter(
-            limit=CONFIG.rate_limiter.limit,
+            limit=None,
             interval=CONFIG.rate_limiter.interval,
             redis_client=self.redis,
         )
@@ -123,6 +123,8 @@ class MinerOrchestrator:
         Returns:
             List of miner IDs that passed rate limiting.
         """
+        if not self.limiter.limit:
+            raise ValueError("Rate limit is not set")
         logger.debug(
             f"Checking rate limits - uid: {uid}, top_fraction: {top_fraction}, count: {count}"
         )
