@@ -60,7 +60,7 @@ class MinerOrchestrator:
     def _init_db(self):
         """Initialize PostgreSQL database and create tables if they don't exist"""
         # Create database if it doesn't exist
-        default_db_uri = CONFIG.postgres.get_uri(database='postgres')
+        default_db_uri = CONFIG.postgres.get_uri()
         temp_engine = create_engine(default_db_uri)
         database_name = CONFIG.postgres.database
 
