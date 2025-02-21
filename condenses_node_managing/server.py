@@ -26,7 +26,7 @@ class RateLimitRequest(BaseModel):
 async def get_stats(uid: int):
     """Get stats for a specific miner"""
     try:
-        return await orchestrator.get_stats(uid)
+        return orchestrator.get_stats(uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -35,7 +35,7 @@ async def get_stats(uid: int):
 async def update_stats(update: ScoreUpdate):
     """Update score for a specific miner"""
     try:
-        result = await orchestrator.update_stats(uid=update.uid, new_score=update.new_score)
+        result = orchestrator.update_stats(uid=update.uid, new_score=update.new_score)
         return {"result": result}
     except Exception as e:
         logger.error(f"Error updating stats: {e}")
@@ -46,7 +46,7 @@ async def update_stats(update: ScoreUpdate):
 async def consume_rate_limits(request: RateLimitRequest):
     """Consume rate limits for miners"""
     try:
-        return await orchestrator.consume_rate_limits(
+        return orchestrator.consume_rate_limits(
             uid=request.uid,
             top_fraction=request.top_fraction,
             count=request.count,
@@ -61,7 +61,7 @@ async def consume_rate_limits(request: RateLimitRequest):
 async def get_score_weights():
     """Get score weights for all miners"""
     try:
-        return await orchestrator.get_score_weights()
+        return orchestrator.get_score_weights()
     except Exception as e:
         logger.error(f"Error getting score weights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
