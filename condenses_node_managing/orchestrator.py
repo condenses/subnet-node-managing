@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from restful_bittensor.client import AsyncRestfulBittensor
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from contextlib import asynccontextmanager
 
 Base = declarative_base()
 
@@ -67,10 +68,10 @@ class MinerOrchestrator:
             self.limiter.limit = rate_limit
             await asyncio.sleep(600)
 
-    @contextmanager
-    async def _get_db(self) -> Session:
+    @asynccontextmanager
+    async def _get_db(self):
         """Async context manager for database sessions"""
-        session = self.SessionMaker()
+        session = await self.SessionMaker()
         try:
             yield session
             await session.commit()
