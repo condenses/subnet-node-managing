@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional
 from .orchestrator import MinerOrchestrator, MinerStats
 from .config import CONFIG
 
+
 app = FastAPI()
 orchestrator = MinerOrchestrator()
 

@@ -1,6 +1,9 @@
 [tool.hatch.build.targets.wheel]
 packages = ["condenses_node_managing"]
 
+[tool.uv.sources]
+restful-bittensor = { git = "https://github.com/condenses/restful-bittensor" }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -22,6 +25,7 @@ dependencies = [
     "numpy",
     "pydantic-settings>=2.7.1",
     "redis>=5.2.1",
+    "restful-bittensor",
     "rich",
     "sqlalchemy>=2.0.38",
     "uvicorn>=0.34.0",

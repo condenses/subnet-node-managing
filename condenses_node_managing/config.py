@@ -11,19 +11,36 @@ class RedisConfig(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
 
+    class Config:
+        extra = "ignore"
+
 class RateLimiterConfig(BaseModel):
     model_config = {"extra": "ignore"}
     limit: int = 512
     interval: int = 60
 
+    class Config:
+        extra = "ignore"
 
 class MinerManagerConfig(BaseModel):
     model_config = {"extra": "ignore"}
     score_ema: float = 0.95
 
+    class Config:
+        extra = "ignore"
+
 class SQLiteConfig(BaseModel):
     model_config = {"extra": "ignore"}
     path: str = "miner_stats.db"
+
+    class Config:
+        extra = "ignore"
+
+class RestfulBittensorConfig(BaseModel):
+    base_url: str = "http://127.0.0.1:9103"
+
+    class Config:
+        extra = "ignore"
 
 
 class Settings(BaseSettings):
@@ -31,9 +48,11 @@ class Settings(BaseSettings):
     rate_limiter: RateLimiterConfig = RateLimiterConfig()
     miner_manager: MinerManagerConfig = MinerManagerConfig()
     sqlite: SQLiteConfig = SQLiteConfig()
+    restful_bittensor: RestfulBittensorConfig = RestfulBittensorConfig()
     class Config:
         env_nested_delimiter = "__"
-
+        env_file = ".env"
+        extra = "ignore"
 
 CONFIG = Settings()
 

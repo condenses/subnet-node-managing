@@ -8,7 +8,8 @@ from sqlalchemy import create_engine, Column, Integer, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
-
+from restful_bittensor.client import AsyncRestfulBittensor
+import asyncio
 Base = declarative_base()
 
 class MinerStatsModel(Base):
@@ -35,15 +36,18 @@ class MinerOrchestrator:
             password=CONFIG.redis.password,
             decode_responses=True,
         )
+        self.miner_ids = list(range(0, 256))
+        self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
+        self.score_ema = CONFIG.miner_manager.score_ema
+        self.restful_bittensor_client = AsyncRestfulBittensor(
+            base_url=CONFIG.restful_bittensor.base_url,
+        )
         self.limiter = RateLimiter(
             limit=CONFIG.rate_limiter.limit,
             interval=CONFIG.rate_limiter.interval,
             redis_client=self.redis,
         )
-        self.miner_ids = list(range(0, 256))
-        self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
-        self.score_ema = CONFIG.miner_manager.score_ema
-
+        asyncio.create_task(self.sync_rate_limit())
         if not self.check_connection():
             logger.error("Failed to connect to SQLite or Redis")
             raise ConnectionError("Failed to connect to SQLite")
@@ -52,6 +56,16 @@ class MinerOrchestrator:
     def _init_db(self):
         """Initialize SQLite database and create tables if they don't exist"""
         Base.metadata.create_all(self.engine)
+
+    async def sync_rate_limit(self):
+        while True:
+            logger.info("Syncing rate limit")
+            normalized_stake = await self.restful_bittensor_client.get_normalized_stake()
+            logger.info(f"Normalized stake: {normalized_stake}")
+            rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, 2)
+            logger.info(f"Rate limit: {rate_limit}")
+            self.limiter.limit = rate_limit
+            await asyncio.sleep(600)
 
     @contextmanager
     def _get_db(self) -> Session:
