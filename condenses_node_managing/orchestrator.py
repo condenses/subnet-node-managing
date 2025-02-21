@@ -61,7 +61,7 @@ class MinerOrchestrator:
     def _init_db(self):
         """Initialize PostgreSQL database and create tables if they don't exist"""
         default_db_uri = CONFIG.postgres.get_uri()
-        temp_engine = create_engine(default_db_uri, pool_size=10, max_overflow=20)  # Use connection pooling
+        temp_engine = create_engine(default_db_uri, pool_size=10, max_overflow=20, isolation_level="AUTOCOMMIT")  # Enable autocommit
         database_name = CONFIG.postgres.database
 
         with temp_engine.connect() as conn:
@@ -69,7 +69,7 @@ class MinerOrchestrator:
             result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :database"), {"database": database_name})
             if not result.fetchone():
                 # Create database if it doesn't exist
-                conn.execute(text(f"CREATE DATABASE {database_name} WITH ENCODING 'utf8'"))
+                conn.execute(text(f"CREATE DATABASE {database_name}"))  # Removed WITH ENCODING 'utf8'
                 logger.info(f"Database {database_name} created successfully")
             else:
                 logger.info(f"Database {database_name} already exists")
