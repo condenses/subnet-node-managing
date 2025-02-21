@@ -13,5 +13,4 @@ RUN pip install --upgrade pip && \
     uv sync --prerelease=allow
 
 ENV PATH=/app/.venv/bin:$PATH
-EXPOSE 9101
-CMD ["condenses-node-managing-start-server"]
+CMD ["uvicorn", "condenses_node_managing.server:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -21,9 +21,9 @@ dependencies = [
     "loguru>=0.7.3",
     "numpy",
     "pydantic-settings>=2.7.1",
-    "pymongo>=4.11.1",
     "redis>=5.2.1",
     "rich",
+    "sqlalchemy>=2.0.38",
     "uvicorn>=0.34.0",
 ]
 

@@ -1,25 +1,32 @@
 from .serving_counter import RateLimiter
-from pymongo import MongoClient
 from .config import CONFIG
 from pydantic import BaseModel
-from pymongo.results import UpdateResult
 import numpy as np
 import redis
 from loguru import logger
+from sqlalchemy import create_engine, Column, Integer, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from contextlib import contextmanager
 
+Base = declarative_base()
+
+class MinerStatsModel(Base):
+    __tablename__ = 'miner_stats'
+    uid = Column(Integer, primary_key=True)
+    score = Column(Float, default=0.0)
 
 class MinerStats(BaseModel):
     uid: int
     score: float = 0.0
 
-
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        self.db = MongoClient(CONFIG.mongo.get_uri())
-        self.stats_collection = self.db.get_database(
-            CONFIG.mongo.database
-        ).get_collection(CONFIG.mongo.collection)
+        self.db_url = f"sqlite:///{CONFIG.sqlite.path}"
+        self.engine = create_engine(self.db_url)
+        self._init_db()
+        self.SessionMaker = sessionmaker(bind=self.engine)
         self.redis = redis.Redis(
             host=CONFIG.redis.host,
             port=CONFIG.redis.port,
@@ -38,31 +45,51 @@ class MinerOrchestrator:
         self.score_ema = CONFIG.miner_manager.score_ema
 
         if not self.check_connection():
-            logger.error("Failed to connect to MongoDB or Redis")
-            raise ConnectionError("Failed to connect to MongoDB")
+            logger.error("Failed to connect to SQLite or Redis")
+            raise ConnectionError("Failed to connect to SQLite")
         logger.info("MinerOrchestrator initialized successfully")
+
+    def _init_db(self):
+        """Initialize SQLite database and create tables if they don't exist"""
+        Base.metadata.create_all(self.engine)
+
+    @contextmanager
+    def _get_db(self) -> Session:
+        """Context manager for database sessions"""
+        session = self.SessionMaker()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def get_stats(self, uid: int) -> MinerStats:
         logger.debug(f"Getting stats for miner {uid}")
-        stats = self.stats_collection.find_one({"uid": uid})
+        with self._get_db() as session:
+            stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
+            
+            if not stats:
+                logger.info(f"No stats found for miner {uid}, creating new entry")
+                stats = MinerStatsModel(uid=uid, score=0.0)
+                session.add(stats)
+                session.commit()
+                return MinerStats(uid=stats.uid, score=stats.score)
 
-        if not stats:
-            logger.info(f"No stats found for miner {uid}, creating new entry")
-            stats = MinerStats(uid=uid, score=0.0)
-            self.stats_collection.insert_one(stats.dict())
-            return stats
+            return MinerStats(uid=stats.uid, score=stats.score)
 
-        return MinerStats(**dict(stats))
-
-    def update_stats(self, uid: int, new_score: float) -> UpdateResult:
+    def update_stats(self, uid: int, new_score: float) -> bool:
         logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
         stats = self.get_stats(uid)
         stats.score = stats.score * self.score_ema + new_score * (1 - self.score_ema)
-        result = self.stats_collection.update_one(
-            {"uid": uid}, {"$set": {"score": stats.score}}
-        )
-        logger.debug(f"Updated stats for miner {uid}, new score: {stats.score}")
-        return result
+        
+        with self._get_db() as session:
+            db_stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
+            db_stats.score = stats.score
+            logger.debug(f"Updated stats for miner {uid}, new score: {stats.score}")
+            return True
 
     def consume_rate_limits(
         self,
@@ -133,20 +160,16 @@ class MinerOrchestrator:
         return self.miner_ids, normalized_scores
 
     def check_connection(self) -> bool:
-        """
-        Check if both MongoDB and Redis connections are alive and working.
-
-        Returns:
-            bool: True if both connections are working, False otherwise
-        """
-        logger.debug("Checking MongoDB and Redis connections")
+        """Check if both SQLite and Redis connections are alive and working."""
+        logger.debug("Checking SQLite and Redis connections")
         try:
-            # Check MongoDB connection
-            mongo_ok = self.db.admin.command("ping")
+            # Check SQLite connection
+            with self._get_db() as session:
+                session.query(MinerStatsModel).first()
             # Check Redis connection
             redis_ok = self.redis.ping()
-            logger.debug(f"Connection check - MongoDB: {mongo_ok}, Redis: {redis_ok}")
-            return mongo_ok and redis_ok
+            logger.debug(f"Connection check - SQLite: True, Redis: {redis_ok}")
+            return True and redis_ok
         except Exception as e:
             logger.error(f"Connection check failed: {str(e)}")
             return False
