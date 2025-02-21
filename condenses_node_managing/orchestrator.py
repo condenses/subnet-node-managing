@@ -127,9 +127,18 @@ class MinerOrchestrator:
 
     def get_score_weights(self) -> tuple[list[int], list[float]]:
         logger.debug("Calculating score weights for all miners")
-        scores = [self.get_stats(uid).score for uid in self.miner_ids]
-        total = sum(scores)
-        normalized_scores = [round(score / total, 3) for score in scores]
+        with self._get_db() as session:
+            # Get all miner stats in a single query
+            all_stats = {
+                stats.uid: stats.score 
+                for stats in session.query(MinerStatsModel).all()
+            }
+            
+            # Use dictionary lookup instead of individual queries
+            scores = [all_stats.get(uid, 0.0) for uid in self.miner_ids]
+            total = sum(scores)
+            normalized_scores = [round(score / total, 3) if total > 0 else 0.0 for score in scores]
+            
         return self.miner_ids, normalized_scores
 
     def check_connection(self) -> bool:
