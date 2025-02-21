@@ -28,7 +28,7 @@ class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
         self.engine = create_engine(
-            CONFIG.postgres.uri
+            CONFIG.postgres.get_uri()
         )
         self.SessionMaker = sessionmaker(bind=self.engine)
         self.redis = redis.Redis(
