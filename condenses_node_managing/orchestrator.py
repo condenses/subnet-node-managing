@@ -156,7 +156,7 @@ class MinerOrchestrator:
             logger.error(f"Connection check failed: {str(e)}")
             return False
 
-    async def consume_rate_limits(
+    def consume_rate_limits(
         self,
         uid: int = None,
         top_fraction: float = 1.0,
