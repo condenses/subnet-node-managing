@@ -54,7 +54,6 @@ class MinerOrchestrator:
             interval=CONFIG.rate_limiter.interval,
             redis_client=self.redis,
         )
-        asyncio.create_task(self.sync_rate_limit())
         if not self.check_connection():
             logger.error("Failed to connect to PostgreSQL or Redis")
             raise ConnectionError("Failed to connect to PostgreSQL")

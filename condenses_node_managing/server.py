@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional
 from .orchestrator import MinerOrchestrator, MinerStats
 from .config import CONFIG
 from loguru import logger
+import asyncio
 
 app = FastAPI()
 orchestrator = MinerOrchestrator()
@@ -20,6 +21,12 @@ class RateLimitRequest(BaseModel):
     top_fraction: float = 1.0
     count: int = 1
     acceptable_consumed_rate: float = 1.0
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize background tasks when the app starts"""
+    asyncio.create_task(orchestrator.sync_rate_limit())
 
 
 @app.get("/api/stats/{uid}", response_model=MinerStats)
