@@ -6,11 +6,11 @@ import redis
 from loguru import logger
 from sqlalchemy import create_engine, Column, Integer, Float
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 from sidecar_bittensor.client import AsyncRestfulBittensor
 import asyncio
-from sqlalchemy.sql import text
+import os
 
 Base = declarative_base()
 
@@ -29,7 +29,10 @@ class MinerStats(BaseModel):
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        self.engine = create_engine(CONFIG.postgres.get_uri())
+        # Create SQLite database directory if it doesn't exist
+        os.makedirs(os.path.dirname(CONFIG.sqlite.database_path), exist_ok=True)
+        # Use SQLite instead of PostgreSQL
+        self.engine = create_engine(f"sqlite:///{CONFIG.sqlite.database_path}")
         self.SessionMaker = sessionmaker(bind=self.engine)
         # Initialize database tables
         self._init_db()
@@ -54,35 +57,15 @@ class MinerOrchestrator:
             redis_client=self.redis,
         )
         if not self.check_connection():
-            logger.error("Failed to connect to PostgreSQL or Redis")
-            raise ConnectionError("Failed to connect to PostgreSQL")
+            logger.error("Failed to connect to SQLite or Redis")
+            raise ConnectionError("Failed to connect to database")
         logger.info("MinerOrchestrator initialized successfully")
 
     def _init_db(self):
-        """Initialize PostgreSQL database and create tables if they don't exist"""
-        default_db_uri = CONFIG.postgres.get_uri()
-        temp_engine = create_engine(
-            default_db_uri, pool_size=10, max_overflow=20, isolation_level="AUTOCOMMIT"
-        )  # Enable autocommit
-        database_name = CONFIG.postgres.database
-
-        with temp_engine.connect() as conn:
-            # Check if the database already exists
-            result = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :database"),
-                {"database": database_name},
-            )
-            if not result.fetchone():
-                # Create database if it doesn't exist
-                conn.execute(
-                    text(f"CREATE DATABASE {database_name}")
-                )  # Removed WITH ENCODING 'utf8'
-                logger.info(f"Database {database_name} created successfully")
-            else:
-                logger.info(f"Database {database_name} already exists")
-
-        # Create tables
+        """Initialize SQLite database and create tables if they don't exist"""
+        # Create tables directly - no need to check if database exists with SQLite
         Base.metadata.create_all(self.engine)
+        logger.info("SQLite database tables created successfully")
 
     async def sync_rate_limit(self):
         while True:
@@ -152,15 +135,15 @@ class MinerOrchestrator:
         return self.miner_ids, normalized_scores
 
     def check_connection(self) -> bool:
-        """Check if both PostgreSQL and Redis connections are alive and working."""
-        logger.debug("Checking PostgreSQL and Redis connections")
+        """Check if both SQLite and Redis connections are alive and working."""
+        logger.debug("Checking SQLite and Redis connections")
         try:
-            # Check PostgreSQL connection
+            # Check SQLite connection
             with self._get_db() as session:
                 session.query(MinerStatsModel).first()
             # Check Redis connection
             redis_ok = self.redis.ping()
-            logger.debug(f"Connection check - PostgreSQL: True, Redis: {redis_ok}")
+            logger.debug(f"Connection check - SQLite: True, Redis: {redis_ok}")
             return True and redis_ok
         except Exception as e:
             logger.error(f"Connection check failed: {str(e)}")
