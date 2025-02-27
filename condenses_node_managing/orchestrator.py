@@ -29,8 +29,6 @@ class MinerStats(BaseModel):
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        # Create SQLite database directory if it doesn't exist
-        os.makedirs(CONFIG.sqlite.database_path, exist_ok=True)
         # Use SQLite instead of PostgreSQL
         self.engine = create_engine(f"sqlite:///{CONFIG.sqlite.database_path}")
         self.SessionMaker = sessionmaker(bind=self.engine)
