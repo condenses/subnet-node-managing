@@ -8,9 +8,8 @@ from sqlalchemy import create_engine, Column, Integer, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
-from restful_bittensor.client import AsyncRestfulBittensor
+from sidecar_bittensor.client import AsyncRestfulBittensor
 import asyncio
-import random
 from sqlalchemy.sql import text
 
 Base = declarative_base()
@@ -46,8 +45,8 @@ class MinerOrchestrator:
         self.miner_ids = list(range(0, 256))
         self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
         self.score_ema = CONFIG.miner_manager.score_ema
-        self.restful_bittensor_client = AsyncRestfulBittensor(
-            base_url=CONFIG.restful_bittensor.base_url,
+        self.sidecar_bittensor_client = AsyncRestfulBittensor(
+            base_url=CONFIG.sidecar_bittensor.base_url,
         )
         self.limiter = RateLimiter(
             limit=None,
@@ -89,7 +88,7 @@ class MinerOrchestrator:
         while True:
             logger.info("Syncing rate limit")
             normalized_stake = (
-                await self.restful_bittensor_client.get_normalized_stake()
+                await self.sidecar_bittensor_client.get_normalized_stake()
             )
             logger.info(f"Normalized stake: {normalized_stake}")
             rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, 2)

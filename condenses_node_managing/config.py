@@ -11,6 +11,7 @@ class RedisConfig(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
 
+
 class RateLimiterConfig(BaseModel):
     model_config = {"extra": "ignore"}
     limit: int = 512
@@ -27,8 +28,9 @@ class SQLiteConfig(BaseModel):
     path: str = "miner_stats.db"
 
 
-class RestfulBittensorConfig(BaseModel):
+class SidecarBittensorConfig(BaseModel):
     base_url: str = "http://127.0.0.1:9103"
+
 
 class PostgresConfig(BaseModel):
     model_config = {"extra": "ignore"}
@@ -47,18 +49,19 @@ class PostgresConfig(BaseModel):
         return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
-
 class Settings(BaseSettings):
     redis: RedisConfig = RedisConfig()
     rate_limiter: RateLimiterConfig = RateLimiterConfig()
     miner_manager: MinerManagerConfig = MinerManagerConfig()
     sqlite: SQLiteConfig = SQLiteConfig()
-    restful_bittensor: RestfulBittensorConfig = RestfulBittensorConfig()
+    sidecar_bittensor: SidecarBittensorConfig = SidecarBittensorConfig()
     postgres: PostgresConfig = PostgresConfig()
+
     class Config:
         env_nested_delimiter = "__"
         env_file = ".env"
         extra = "ignore"
+
 
 CONFIG = Settings()
 

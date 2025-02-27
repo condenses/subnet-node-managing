@@ -2,7 +2,7 @@
 packages = ["condenses_node_managing"]
 
 [tool.uv.sources]
-restful-bittensor = { git = "https://github.com/condenses/restful-bittensor" }
+sidecar-bittensor = { git = "https://github.com/condenses/sidecar-bittensor" }
 
 [build-system]
 requires = ["hatchling"]
@@ -28,16 +28,8 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.7.1",
     "redis>=5.2.1",
-    "restful-bittensor",
+    "sidecar-bittensor",
     "rich",
     "sqlalchemy>=2.0.38",
     "uvicorn>=0.34.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/yourusername/restful-bittensor"
-Repository = "https://github.com/yourusername/restful-bittensor.git"
-
-
-[project.scripts]
-condenses-node-managing-start-server = "condenses_node_managing.server:start_server"
