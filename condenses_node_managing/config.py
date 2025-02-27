@@ -25,7 +25,7 @@ class MinerManagerConfig(BaseModel):
 
 class SQLiteConfig(BaseModel):
     model_config = {"extra": "ignore"}
-    path: str = "miner_stats.db"
+    database_path: str = "miner_stats.db"
 
 
 class SidecarBittensorConfig(BaseModel):
