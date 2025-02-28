@@ -237,6 +237,7 @@ class MinerOrchestrator:
             self.limiter.get_remaining(self.miner_keys[miner_id])
             for miner_id, _ in ranked_miners
         ]
+        logger.debug(f"Probabilities: {probabilities}")
 
         # Prevent division by zero
         sum_probabilities = sum(probabilities)
@@ -254,7 +255,7 @@ class MinerOrchestrator:
             replace=False,
             p=probabilities,
         )
-
+        logger.debug(f"Selected miners: {selected}")
         result = [
             miner_id
             for miner_id in selected
