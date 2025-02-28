@@ -6,11 +6,14 @@ import redis
 from loguru import logger
 from sqlalchemy import create_engine, Column, Integer, Float
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from sidecar_bittensor.client import AsyncRestfulBittensor
 import asyncio
 import os
+import functools
+import time
+from cachetools import TTLCache, cached
 
 Base = declarative_base()
 
@@ -18,31 +21,43 @@ Base = declarative_base()
 class MinerStatsModel(Base):
     __tablename__ = "miner_stats"
     uid = Column(Integer, primary_key=True)
-    score = Column(Float, default=0.0)
+    score = Column(Float, default=0.01)
 
 
 class MinerStats(BaseModel):
     uid: int
-    score: float = 0.0
+    score: float = 0.01
 
 
 class MinerOrchestrator:
     def __init__(self):
         logger.info("Initializing MinerOrchestrator")
-        # Use SQLite instead of PostgreSQL
-        self.engine = create_engine(f"sqlite:///{CONFIG.sqlite.database_path}")
-        self.SessionMaker = sessionmaker(bind=self.engine)
+        # Use SQLite with optimized connection pool
+        self.engine = create_engine(
+            f"sqlite:///{CONFIG.sqlite.database_path}",
+            connect_args={"check_same_thread": False},
+            pool_size=20,
+            max_overflow=30,
+        )
+        self.SessionMaker = scoped_session(sessionmaker(bind=self.engine))
         # Initialize database tables
         self._init_db()
 
-        self.redis = redis.Redis(
+        # Configure Redis connection pool
+        redis_pool = redis.ConnectionPool(
             host=CONFIG.redis.host,
             port=CONFIG.redis.port,
             db=CONFIG.redis.db,
             username=CONFIG.redis.username,
             password=CONFIG.redis.password,
             decode_responses=True,
+            max_connections=100,
         )
+        self.redis = redis.Redis(connection_pool=redis_pool)
+
+        # Initialize cache for frequent operations
+        self.scores_cache = TTLCache(maxsize=1000, ttl=10)  # 10 seconds TTL
+
         self.miner_ids = list(range(0, 256))
         self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
         self.score_ema = CONFIG.miner_manager.score_ema
@@ -90,31 +105,43 @@ class MinerOrchestrator:
         finally:
             session.close()
 
+    # Cache database lookup operations
+    @cached(cache=lambda self: self.scores_cache, key=lambda uid: f"stats:{uid}")
     def get_stats(self, uid: int) -> MinerStats:
         logger.debug(f"Getting stats for miner {uid}")
         with self._get_db() as session:
             stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
-            logger.info(f"Stats: {stats}")
             if not stats:
                 logger.info(f"No stats found for miner {uid}, creating new entry")
-                stats = MinerStatsModel(uid=uid, score=0.0)
+                stats = MinerStatsModel(uid=uid, score=0.01)
                 session.add(stats)
-                session.commit()
-                return MinerStats(uid=stats.uid, score=stats.score)
 
-            return MinerStats(uid=stats.uid, score=stats.score)
+        return MinerStats(uid=stats.uid, score=stats.score)
 
     def update_stats(self, uid: int, new_score: float) -> bool:
         logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
-        stats = self.get_stats(uid)
-        stats.score = stats.score * self.score_ema + new_score * (1 - self.score_ema)
-        logger.info(f"Stats: {stats}")
+        # Invalidate cache on update
+        if f"stats:{uid}" in self.scores_cache:
+            del self.scores_cache[f"stats:{uid}"]
+
         with self._get_db() as session:
-            db_stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
-            db_stats.score = stats.score
-            logger.debug(f"Updated stats for miner {uid}, new score: {stats.score}")
+            # Get and update stats in a single transaction
+            stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
+            if not stats:
+                logger.info(f"No stats found for miner {uid}, creating new entry")
+                stats = MinerStatsModel(uid=uid, score=0.01)
+                session.add(stats)
+
+            # Apply the EMA calculation
+            stats.score = max(
+                stats.score * self.score_ema + new_score * (1 - self.score_ema), 0.01
+            )
+            logger.info(f"Updated stats for miner {uid}, new score: {stats.score}")
+            # Session will be committed by the context manager
             return True
 
+    # Cache the weights calculation with short TTL
+    @cached(cache=lambda self: self.scores_cache, key=lambda _: "all_weights")
     def get_score_weights(self) -> tuple[list[int], list[float]]:
         logger.debug("Calculating score weights for all miners")
         with self._get_db() as session:
@@ -124,7 +151,7 @@ class MinerOrchestrator:
             }
 
             # Use dictionary lookup instead of individual queries
-            scores = [all_stats.get(uid, 0.0) for uid in self.miner_ids]
+            scores = [all_stats.get(uid, 0.01) for uid in self.miner_ids]
             total = sum(scores)
             normalized_scores = [
                 round(score / total, 3) if total > 0 else 0.0 for score in scores
@@ -147,6 +174,7 @@ class MinerOrchestrator:
             logger.error(f"Connection check failed: {str(e)}")
             return False
 
+    # Optimize rate limit consumption for batch operations
     def consume_rate_limits(
         self,
         uid: int = None,
@@ -171,23 +199,23 @@ class MinerOrchestrator:
             f"Checking rate limits - uid: {uid}, top_fraction: {top_fraction}, count: {count}"
         )
         if uid:
-            result = (
-                [uid]
-                if self.limiter.consume(
-                    self.miner_keys[uid],
-                    acceptable_consumed_rate=acceptable_consumed_rate,
-                )
-                else []
-            )
-            logger.debug(
-                f"Rate limit check for miner {uid}: {'passed' if result else 'failed'}"
-            )
-            return result
+            if self.limiter.consume(
+                self.miner_keys[uid],
+                acceptable_consumed_rate=acceptable_consumed_rate,
+            ):
+                return [uid]
+            return []
 
         with self._get_db() as session:
             all_stats = {
                 stats.uid: stats.score for stats in session.query(MinerStatsModel).all()
             }
+
+        # Handle the case when database is empty
+        if not all_stats:
+            logger.warning("No miner stats found in database, using default values")
+            # Create default stats with equal weights for all miners
+            all_stats = {miner_id: 0.01 for miner_id in self.miner_ids}
 
         ranked_miners = sorted(all_stats.items(), key=lambda x: x[1], reverse=True)[
             : int(len(self.miner_ids) * top_fraction)
@@ -197,9 +225,16 @@ class MinerOrchestrator:
             self.limiter.get_remaining(self.miner_keys[miner_id])
             for miner_id, _ in ranked_miners
         ]
-        probabilities = [
-            probability / sum(probabilities) for probability in probabilities
-        ]
+
+        # Prevent division by zero
+        sum_probabilities = sum(probabilities)
+        if sum_probabilities <= 0:
+            logger.warning("Sum of probabilities is zero, using equal probabilities")
+            probabilities = [1.0 / len(ranked_miners) for _ in ranked_miners]
+        else:
+            probabilities = [
+                probability / sum_probabilities for probability in probabilities
+            ]
 
         selected = np.random.choice(
             [miner_id for miner_id, _ in ranked_miners],
