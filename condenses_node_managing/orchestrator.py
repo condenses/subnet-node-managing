@@ -226,12 +226,8 @@ class MinerOrchestrator:
             all_stats = {
                 stats.uid: stats.score for stats in session.query(MinerStatsModel).all()
             }
-
-        # Handle the case when database is empty
-        if not all_stats:
-            logger.warning("No miner stats found in database, using default values")
-            # Create default stats with equal weights for all miners
-            all_stats = {miner_id: 0.01 for miner_id in self.miner_ids}
+            default_stats = {miner_id: 0.01 for miner_id in self.miner_ids}
+            all_stats = {**default_stats, **all_stats}
 
         ranked_miners = sorted(all_stats.items(), key=lambda x: x[1], reverse=True)[
             : int(len(self.miner_ids) * top_fraction)
