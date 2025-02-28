@@ -83,13 +83,31 @@ class MinerOrchestrator:
     async def sync_rate_limit(self):
         while True:
             logger.info("Syncing rate limit")
-            normalized_stake = (
-                await self.sidecar_bittensor_client.get_normalized_stake()
-            )
-            logger.info(f"Normalized stake: {normalized_stake}")
-            rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, 2)
-            logger.info(f"Rate limit: {rate_limit}")
-            self.limiter.limit = rate_limit
+            retry_count = 0
+            max_retries = 3
+            while retry_count < max_retries:
+                try:
+                    normalized_stake = (
+                        await self.sidecar_bittensor_client.get_normalized_stake()
+                    )
+                    logger.info(f"Normalized stake: {normalized_stake}")
+                    rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, 2)
+                    logger.info(f"Rate limit: {rate_limit}")
+                    self.limiter.limit = rate_limit
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    retry_count += 1
+                    logger.warning(
+                        f"Failed to sync rate limit: {str(e)}, attempt {retry_count}/{max_retries}"
+                    )
+                    if retry_count >= max_retries:
+                        logger.error(
+                            f"Failed to sync rate limit after {max_retries} attempts"
+                        )
+                    else:
+                        logger.info(f"Retrying in 10 seconds...")
+                        await asyncio.sleep(10)
+
             await asyncio.sleep(600)
 
     @contextmanager
