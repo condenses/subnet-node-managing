@@ -158,8 +158,6 @@ class MinerOrchestrator:
             # Session will be committed by the context manager
             return True
 
-    # Cache the weights calculation with short TTL
-    @cached(cache=lambda self: self.scores_cache, key=lambda _: "all_weights")
     def get_score_weights(self) -> tuple[list[int], list[float]]:
         logger.debug("Calculating score weights for all miners")
         with self._get_db() as session:
