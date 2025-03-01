@@ -31,31 +31,12 @@ class SQLiteConfig(BaseModel):
 class SidecarBittensorConfig(BaseModel):
     base_url: str = "http://127.0.0.1:9103"
 
-
-class PostgresConfig(BaseModel):
-    model_config = {"extra": "ignore"}
-    host: str = "localhost"
-    port: int = 5432
-    database: str = "condenses"
-    username: str = "postgres"
-    password: str = "postgres"
-    uri: str = ""
-
-    def get_uri(self):
-        if self.uri:
-            return self.uri
-        if not all([self.host, self.port, self.database, self.username, self.password]):
-            raise ValueError("Missing required PostgreSQL configuration fields")
-        return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-
 class Settings(BaseSettings):
     redis: RedisConfig = RedisConfig()
     rate_limiter: RateLimiterConfig = RateLimiterConfig()
     miner_manager: MinerManagerConfig = MinerManagerConfig()
     sqlite: SQLiteConfig = SQLiteConfig()
     sidecar_bittensor: SidecarBittensorConfig = SidecarBittensorConfig()
-    postgres: PostgresConfig = PostgresConfig()
 
     node_managing_api_key: str = ""
 
