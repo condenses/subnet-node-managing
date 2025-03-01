@@ -82,7 +82,7 @@ class MinerOrchestrator:
         """Fetch and calculate normalized stake from Taostats API."""
         TAOSTATS_URL = "https://api.taostats.io/api/metagraph/latest/v1"
         PARAMS = "?netuid=47&validator_permit=true&limit=256"
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
@@ -91,15 +91,18 @@ class MinerOrchestrator:
                     timeout=10,
                 )
                 response.raise_for_status()  # Raise exception for HTTP errors
-                
-                items = response.json()
+
+                items = response.json()["data"]
                 stakes = [item["total_alpha_stake"] for item in items]
+                logger.info(f"Stakes: {stakes}")
                 total_stake = sum(stakes)
                 normalized_stakes = [stake / total_stake for stake in stakes]
                 hotkeys = [item["hotkey"]["ss58"] for item in items]
-                
+
                 target_index = hotkeys.index(CONFIG.taostats_api.ss58_address)
-                logger.debug(f"Total stake: {total_stake}, Target index: {target_index}")
+                logger.debug(
+                    f"Total stake: {total_stake}, Target index: {target_index}"
+                )
                 return normalized_stakes[target_index]
             except (httpx.HTTPError, KeyError, ValueError) as e:
                 logger.error(f"Taostats API error: {type(e).__name__}: {str(e)}")
@@ -108,11 +111,15 @@ class MinerOrchestrator:
     async def _get_normalized_stake_with_fallback(self):
         """Get normalized stake with fallback to Taostats if primary method fails."""
         try:
-            normalized_stake = await self.sidecar_bittensor_client.get_normalized_stake()
+            normalized_stake = (
+                await self.sidecar_bittensor_client.get_normalized_stake()
+            )
             logger.debug("Successfully fetched stake from sidecar_bittensor")
             return normalized_stake
         except Exception as e:
-            logger.warning(f"Failed to get normalized stake from primary source: {str(e)}")
+            logger.warning(
+                f"Failed to get normalized stake from primary source: {str(e)}"
+            )
             logger.warning("Attempting fallback to Taostats API")
             return await self.get_normalized_stake_taostats()
 
@@ -122,30 +129,36 @@ class MinerOrchestrator:
         RETRY_INTERVAL = 10  # 10 seconds
         MAX_RETRIES = 3
         MIN_RATE_LIMIT = 2
-        
+
         while True:
             logger.info("Syncing rate limit")
-            
+
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     # Get normalized stake with built-in fallback
                     normalized_stake = await self._get_normalized_stake_with_fallback()
-                    
+
                     # Calculate and set the new rate limit
                     logger.info(f"Normalized stake: {normalized_stake}")
-                    rate_limit = max(CONFIG.rate_limiter.limit * normalized_stake, MIN_RATE_LIMIT)
+                    rate_limit = max(
+                        CONFIG.rate_limiter.limit * normalized_stake, MIN_RATE_LIMIT
+                    )
                     logger.info(f"Setting rate limit to: {rate_limit}")
                     self.limiter.limit = rate_limit
                     break  # Success, exit retry loop
-                    
+
                 except Exception as e:
-                    logger.warning(f"Rate limit sync attempt {attempt}/{MAX_RETRIES} failed: {str(e)}")
+                    logger.warning(
+                        f"Rate limit sync attempt {attempt}/{MAX_RETRIES} failed: {str(e)}"
+                    )
                     if attempt >= MAX_RETRIES:
-                        logger.error(f"Failed to sync rate limit after {MAX_RETRIES} attempts")
+                        logger.error(
+                            f"Failed to sync rate limit after {MAX_RETRIES} attempts"
+                        )
                     else:
                         logger.info(f"Retrying in {RETRY_INTERVAL} seconds...")
                         await asyncio.sleep(RETRY_INTERVAL)
-            
+
             # Wait until next sync cycle
             await asyncio.sleep(SYNC_INTERVAL)
 
