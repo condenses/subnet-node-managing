@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     sidecar_bittensor: SidecarBittensorConfig = SidecarBittensorConfig()
     postgres: PostgresConfig = PostgresConfig()
 
+    node_managing_api_key: str = ""
+
     class Config:
         env_nested_delimiter = "__"
         env_file = ".env"

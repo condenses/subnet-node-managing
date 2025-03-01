@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, Depends, BackgroundTasks, Security
 import uvicorn
 from pydantic import BaseModel
 from typing import List, Tuple, Optional
@@ -10,6 +10,26 @@ import time
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.concurrency import run_in_threadpool
+from fastapi.security import APIKeyHeader
+
+# Define the API key header scheme
+api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
+
+
+# Dependency to check API key
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    if not CONFIG.node_managing_api_key:
+        # If no API key is configured, skip authentication
+        return True
+
+    if api_key != CONFIG.node_managing_api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    return True
+
 
 app = FastAPI()
 orchestrator = MinerOrchestrator()
@@ -69,7 +89,7 @@ async def startup_event():
 
 
 @app.get("/api/stats/{uid}", response_model=MinerStats)
-async def get_stats(uid: int):
+async def get_stats(uid: int, authenticated: bool = Depends(verify_api_key)):
     """Get stats for a specific miner"""
     try:
         # Run DB operations in threadpool to avoid blocking
@@ -80,7 +100,9 @@ async def get_stats(uid: int):
 
 
 @app.post("/api/stats/update")
-async def update_stats(update: ScoreUpdate):
+async def update_stats(
+    update: ScoreUpdate, authenticated: bool = Depends(verify_api_key)
+):
     """Update score for a specific miner"""
     try:
         result = await run_in_threadpool(
@@ -93,7 +115,9 @@ async def update_stats(update: ScoreUpdate):
 
 
 @app.post("/api/rate-limits/consume", response_model=List[int])
-async def consume_rate_limits(request: RateLimitRequest):
+async def consume_rate_limits(
+    request: RateLimitRequest, authenticated: bool = Depends(verify_api_key)
+):
     """Consume rate limits for miners"""
     try:
         return await run_in_threadpool(
@@ -109,7 +133,7 @@ async def consume_rate_limits(request: RateLimitRequest):
 
 
 @app.get("/api/weights", response_model=Tuple[List[int], List[float]])
-async def get_score_weights():
+async def get_score_weights(authenticated: bool = Depends(verify_api_key)):
     """Get score weights for all miners"""
     try:
         return await run_in_threadpool(orchestrator.get_score_weights)
@@ -127,14 +151,3 @@ async def health_check():
         "status": "healthy" if db_ok else "unhealthy",
         "database": "connected" if db_ok else "disconnected",
     }
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "condenses_node_managing.server:app",
-        host="0.0.0.0",
-        port=8000,
-        workers=4,  # Increase worker count for higher throughput
-        loop="uvloop",  # Use uvloop for better performance
-        timeout_keep_alive=5,
-    )
