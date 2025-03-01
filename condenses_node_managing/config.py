@@ -31,13 +31,23 @@ class SQLiteConfig(BaseModel):
 class SidecarBittensorConfig(BaseModel):
     base_url: str = "http://127.0.0.1:9103"
 
+
+class TaostatsAPIConfig(BaseModel):
+    api_key: str = ""
+    ss58_address: str = ""
+
+    def model_post_init(self, __context):
+        if self.api_key and not self.ss58_address:
+            raise ValueError("If api_key is set, ss58_address must be non-empty")
+
+
 class Settings(BaseSettings):
     redis: RedisConfig = RedisConfig()
     rate_limiter: RateLimiterConfig = RateLimiterConfig()
     miner_manager: MinerManagerConfig = MinerManagerConfig()
     sqlite: SQLiteConfig = SQLiteConfig()
     sidecar_bittensor: SidecarBittensorConfig = SidecarBittensorConfig()
-
+    taostats_api: TaostatsAPIConfig = TaostatsAPIConfig()
     node_managing_api_key: str = ""
 
     class Config:
