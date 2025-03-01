@@ -93,7 +93,7 @@ class MinerOrchestrator:
                 response.raise_for_status()  # Raise exception for HTTP errors
 
                 items = response.json()["data"]
-                stakes = [item["total_alpha_stake"] for item in items]
+                stakes = [float(item["total_alpha_stake"]) for item in items]
                 logger.info(f"Stakes: {stakes}")
                 total_stake = sum(stakes)
                 normalized_stakes = [stake / total_stake for stake in stakes]
