@@ -58,7 +58,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 class TimeoutMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
-            return await asyncio.wait_for(call_next(request), timeout=5.0)
+            return await asyncio.wait_for(call_next(request), timeout=64)
         except asyncio.TimeoutError:
             return HTTPException(
                 status_code=503,
