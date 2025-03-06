@@ -11,8 +11,6 @@ from contextlib import contextmanager
 from sidecar_bittensor.client import AsyncRestfulBittensor
 import asyncio
 import httpx
-from cachetools import TTLCache, cached
-from functools import lru_cache
 import time
 import json
 
@@ -70,12 +68,6 @@ class MinerOrchestrator:
             health_check_interval=30,
         )
         self.redis = redis.Redis(connection_pool=redis_pool)
-
-        # Enhanced caching strategy
-        self.scores_cache = TTLCache(maxsize=1500, ttl=15)  # Increased size and TTL
-        self.global_stats_cache = TTLCache(
-            maxsize=10, ttl=30
-        )  # Cache for aggregate stats
 
         # Fixed size list - no more allocations needed
         self.miner_ids = list(range(0, 256))
@@ -260,10 +252,8 @@ class MinerOrchestrator:
             finally:
                 session.close()
 
-    # Enhanced caching with both TTL and LRU caching
-    @cached(cache=lambda self: self.scores_cache, key=lambda self, uid: f"stats:{uid}")
     def get_stats(self, uid: int) -> MinerStats:
-        """Get miner stats with efficient caching"""
+        """Get miner stats without caching"""
         logger.debug(f"Getting stats for miner {uid}")
         with self._get_db() as session:
             stats = session.query(MinerStatsModel).filter_by(uid=uid).first()
@@ -294,14 +284,6 @@ class MinerOrchestrator:
     def update_stats(self, uid: int, new_score: float) -> bool:
         """Update miner stats with optimized database access"""
         logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
-
-        # Invalidate cache on update
-        key = f"stats:{uid}"
-        if key in self.scores_cache:
-            del self.scores_cache[key]
-
-        # Also invalidate global stats cache since weights may change
-        self.global_stats_cache.clear()
 
         timestamp = time.time()
         with self._get_db() as session:
@@ -341,12 +323,7 @@ class MinerOrchestrator:
             return True
 
     def get_score_weights(self) -> tuple[list[int], list[float]]:
-        """Calculate score weights for all miners with efficient caching"""
-        # Try to get from cache first
-        cache_key = "global_weights"
-        if cache_key in self.global_stats_cache:
-            return self.global_stats_cache[cache_key]
-
+        """Calculate score weights for all miners without caching"""
         logger.debug("Calculating score weights for all miners")
         with self._get_db() as session:
             # Optimized query: load all stats in one go and create an index
@@ -364,11 +341,7 @@ class MinerOrchestrator:
             else:
                 normalized_scores = np.round(scores / total, 3)
 
-            result = (self.miner_ids, normalized_scores.tolist())
-
-            # Store in cache
-            self.global_stats_cache[cache_key] = result
-            return result
+            return (self.miner_ids, normalized_scores.tolist())
 
     def check_connection(self) -> bool:
         """Check database and Redis connections with timeout protection"""
