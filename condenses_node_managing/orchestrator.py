@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import numpy as np
 import redis
 from loguru import logger
-from sqlalchemy import create_engine, Column, Integer, Float, String, select
+from sqlalchemy import create_engine, Column, Integer, Float, String, select, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
@@ -54,7 +54,6 @@ class MinerOrchestrator:
         # Fixed size list - no more allocations needed
         self.miner_ids = list(range(0, 256))
         self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
-        self.score_ema = CONFIG.miner_manager.score_ema
 
         # Initialize database tables
         self._init_db()
@@ -349,7 +348,7 @@ class MinerOrchestrator:
         try:
             # Check SQLite connection with timeout
             with self._get_db() as session:
-                session.execute("SELECT 1").scalar()
+                session.execute(text("SELECT 1")).scalar()
 
             # Check Redis connection with timeout
             redis_ok = self.redis.ping()
