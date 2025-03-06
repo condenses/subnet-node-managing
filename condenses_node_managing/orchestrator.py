@@ -51,6 +51,11 @@ class MinerOrchestrator:
         )
         self.SessionMaker = scoped_session(sessionmaker(bind=self.engine))
 
+        # Fixed size list - no more allocations needed
+        self.miner_ids = list(range(0, 256))
+        self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
+        self.score_ema = CONFIG.miner_manager.score_ema
+
         # Initialize database tables
         self._init_db()
 
@@ -68,11 +73,6 @@ class MinerOrchestrator:
             health_check_interval=30,
         )
         self.redis = redis.Redis(connection_pool=redis_pool)
-
-        # Fixed size list - no more allocations needed
-        self.miner_ids = list(range(0, 256))
-        self.miner_keys = [f"miner:{uid}" for uid in self.miner_ids]
-        self.score_ema = CONFIG.miner_manager.score_ema
 
         # HTTP client configuration
         self.http_timeout = httpx.Timeout(10.0, connect=5.0)
