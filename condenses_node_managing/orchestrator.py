@@ -16,6 +16,8 @@ import json
 
 Base = declarative_base()
 
+N_LAST_SCORES = 32
+
 
 class MinerStatsModel(Base):
     __tablename__ = "miner_stats"
@@ -296,7 +298,7 @@ class MinerOrchestrator:
             if not stats:
                 stats = MinerStatsModel(
                     uid=uid,
-                    score=new_score,
+                    score=new_score / N_LAST_SCORES,
                     updated_at=timestamp,
                     scores_history=json.dumps([new_score]),
                 )
@@ -308,13 +310,11 @@ class MinerOrchestrator:
                 except (json.JSONDecodeError, TypeError):
                     scores_history = []
 
-                # Add new score to history and limit to 64 entries
                 scores_history.append(new_score)
-                if len(scores_history) > 64:
-                    scores_history = scores_history[-64:]
+                scores_history = scores_history[-N_LAST_SCORES:]
 
                 # Calculate mean of scores history
-                stats.score = max(np.mean(scores_history), 0.01)
+                stats.score = np.sum(scores_history) / N_LAST_SCORES
                 stats.scores_history = json.dumps(scores_history)
                 stats.updated_at = timestamp
 
@@ -358,18 +358,19 @@ class MinerOrchestrator:
             logger.error(f"Connection check failed: {str(e)}")
             return False
 
-    # Batch processing of rate limits with numpy vectorization
     def consume_rate_limits(
         self,
-        uid: int = None,
+        uid: int,
         top_fraction: float = 1.0,
         count: int = 1,
         acceptable_consumed_rate: float = 1.0,
     ) -> list[int]:
         """Check and consume rate limits for miners with optimized selection algorithm"""
         if not self.limiter.limit:
-            logger.error("Rate limit is not set, using fallback limit of 10")
-            self.limiter.limit = 10  # Fallback to a reasonable default
+            logger.error(
+                "Rate limit is not set, waiting for sync_rate_limit to complete"
+            )
+            return []
 
         logger.debug(
             f"Checking rate limits - uid: {uid}, top_fraction: {top_fraction}, count: {count}"
@@ -384,11 +385,16 @@ class MinerOrchestrator:
                 return [uid]
             return []
 
-        # Use cached stats for better performance
+        if top_fraction == 1.0:
+            SYNTHETIC_QUERY = True
+        else:
+            SYNTHETIC_QUERY = False
+
+        # Get all miner scores
         miner_ids, weights = self.get_score_weights()
 
-        # Apply top fraction filter
-        if top_fraction < 1.0:
+        # Select candidate miners based on top_fraction
+        if not SYNTHETIC_QUERY:
             # Get indices of top miners by weight
             num_miners = int(len(miner_ids) * top_fraction)
             indices = np.argsort(weights)[-num_miners:]
@@ -398,7 +404,7 @@ class MinerOrchestrator:
             candidate_miners = miner_ids
             candidate_weights = weights
 
-        # Calculate rate limit-adjusted probabilities
+        # Get remaining rate limits for all candidates
         remaining_rates = np.array(
             [
                 self.limiter.get_remaining(self.miner_keys[miner_id])
@@ -406,10 +412,15 @@ class MinerOrchestrator:
             ]
         )
 
-        # Combine weights and remaining rates for better selection
-        combined_scores = remaining_rates * np.array(candidate_weights)
+        # Calculate selection scores based on rate limits and weights
+        if not SYNTHETIC_QUERY:
+            # For top fraction, consider both weights and rate limits
+            combined_scores = remaining_rates * np.array(candidate_weights)
+        else:
+            # For all miners, only consider rate limits
+            combined_scores = remaining_rates
 
-        # Prevent division by zero
+        # Calculate selection probabilities
         sum_scores = np.sum(combined_scores)
         if sum_scores <= 0:
             logger.warning("Sum of combined scores is zero, using equal probabilities")
@@ -417,7 +428,7 @@ class MinerOrchestrator:
         else:
             probabilities = combined_scores / sum_scores
 
-        # Select miners based on combined scores
+        # Select miners based on calculated probabilities
         try:
             selected = np.random.choice(
                 candidate_miners,
