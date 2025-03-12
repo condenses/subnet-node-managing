@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ScoreUpdate(BaseModel):
     uid: int
-    new_score: float
+    new_scores: list[float]
 
 
 class RateLimitRequest(BaseModel):
@@ -39,10 +39,10 @@ class OrchestratorClient:
         return MinerStats(**response.json())
 
     def update_stats(
-        self, uid: int, new_score: float, timeout: Optional[float] = None
+        self, uid: int, new_scores: list[float], timeout: Optional[float] = None
     ) -> dict:
         """Update score for a specific miner"""
-        update = ScoreUpdate(uid=uid, new_score=new_score)
+        update = ScoreUpdate(uid=uid, new_scores=new_scores)
         response = self.client.post(
             f"{self.base_url}/api/stats/update",
             json=update.model_dump(),
@@ -103,10 +103,10 @@ class AsyncOrchestratorClient:
         return MinerStats(**response.json())
 
     async def update_stats(
-        self, uid: int, new_score: float, timeout: Optional[float] = None
+        self, uid: int, new_scores: list[float], timeout: Optional[float] = None
     ) -> dict:
         """Update score for a specific miner"""
-        update = ScoreUpdate(uid=uid, new_score=new_score)
+        update = ScoreUpdate(uid=uid, new_scores=new_scores)
         response = await self.client.post(
             f"{self.base_url}/api/stats/update",
             json=update.model_dump(),
@@ -147,32 +147,3 @@ class AsyncOrchestratorClient:
         )
         response.raise_for_status()
         return tuple(response.json())
-
-
-# Usage examples:
-if __name__ == "__main__":
-    # Synchronous usage
-    with OrchestratorClient() as client:
-        # Get stats for miner with uid 1
-        stats = client.get_stats(1)
-        print(f"Miner stats: {stats}")
-
-        # Update stats
-        result = client.update_stats(1, 0.95)
-        print(f"Update result: {result}")
-
-    # Async usage
-    import asyncio
-
-    async def main():
-        async with AsyncOrchestratorClient() as client:
-            # Get stats for miner with uid 1
-            stats = await client.get_stats(1)
-            print(f"Miner stats: {stats}")
-
-            # Update stats
-            result = await client.update_stats(1, 0.95)
-            print(f"Update result: {result}")
-
-    # Run async example
-    asyncio.run(main())

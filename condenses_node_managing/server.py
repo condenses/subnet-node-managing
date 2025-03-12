@@ -72,7 +72,7 @@ app.add_middleware(TimeoutMiddleware)
 
 class ScoreUpdate(BaseModel):
     uid: int
-    new_score: float
+    new_scores: list[float]
 
 
 class RateLimitRequest(BaseModel):
@@ -106,7 +106,7 @@ async def update_stats(
     """Update score for a specific miner"""
     try:
         result = await run_in_threadpool(
-            orchestrator.update_stats, uid=update.uid, new_score=update.new_score
+            orchestrator.update_stats, uid=update.uid, new_scores=update.new_scores
         )
         return {"result": result}
     except Exception as e:

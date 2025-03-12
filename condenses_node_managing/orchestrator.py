@@ -282,9 +282,9 @@ class MinerOrchestrator:
             scores_history=scores_history,
         )
 
-    def update_stats(self, uid: int, new_score: float) -> bool:
+    def update_stats(self, uid: int, new_scores: list[float]) -> bool:
         """Update miner stats with optimized database access"""
-        logger.debug(f"Updating stats for miner {uid} with new score {new_score}")
+        logger.debug(f"Updating stats for miner {uid} with new scores {new_scores}")
 
         timestamp = time.time()
         with self._get_db() as session:
@@ -298,9 +298,9 @@ class MinerOrchestrator:
             if not stats:
                 stats = MinerStatsModel(
                     uid=uid,
-                    score=new_score / N_LAST_SCORES,
+                    score=np.sum(new_scores) / N_LAST_SCORES,
                     updated_at=timestamp,
-                    scores_history=json.dumps([new_score]),
+                    scores_history=json.dumps(new_scores),
                 )
                 session.add(stats)
             else:
@@ -310,7 +310,7 @@ class MinerOrchestrator:
                 except (json.JSONDecodeError, TypeError):
                     scores_history = []
 
-                scores_history.append(new_score)
+                scores_history.extend(new_scores)
                 scores_history = scores_history[-N_LAST_SCORES:]
 
                 # Calculate mean of scores history
@@ -319,7 +319,7 @@ class MinerOrchestrator:
                 stats.updated_at = timestamp
 
             logger.info(f"Updated stats for miner {uid}, new score: {stats.score}")
-            return True
+        return True
 
     def get_score_weights(self) -> tuple[list[int], list[float]]:
         """Calculate score weights for all miners without caching"""
